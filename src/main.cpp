@@ -4480,6 +4480,7 @@ bool AcceptBlock(CBlock& block, CValidationState& state, CBlockIndex** ppindex, 
     if (pindex->nStatus & BLOCK_HAVE_DATA) {
         // TODO: deal better with duplicate blocks.
         // return state.DoS(20, error("AcceptBlock() : already have block %d %s", pindex->nHeight, pindex->GetBlockHash().ToString()), REJECT_DUPLICATE, "duplicate");
+        LogPrintf("AcceptBlock() : already have block %d %s", pindex->nHeight, pindex->GetBlockHash().ToString());
         return true;
     }
 
@@ -4583,10 +4584,8 @@ bool AcceptBlock(CBlock& block, CValidationState& state, CBlockIndex** ppindex, 
                                 if (stakeIn.prevout == in.prevout) {
                                     return state.DoS(100, error("%s: input already spent on a previous block", __func__));
                                 }
-                            }
 
-                            // Second, if there is zPoS staking then store the serials for later check
-                            if(hasZOBSRInputs) {
+                                // Second, if there is zPoS staking then store the serials for later check
                                 if(in.scriptSig.IsZerocoinSpend()){
                                     vBlockSerials.push_back(TxInToZerocoinSpend(in).getCoinSerialNumber());
                                 }
@@ -4604,29 +4603,29 @@ bool AcceptBlock(CBlock& block, CValidationState& state, CBlockIndex** ppindex, 
 
             // Now that this loop if completed. Check if we have zOBSR inputs.
             if(hasZOBSRInputs){
-
+                LogPrintf("It has ZOBSR Inputs!!\n");
                 for (CTxIn zObsrInput : zOBSRInputs) {
                     CoinSpend spend = TxInToZerocoinSpend(zObsrInput);
 
                     // First check if the serials were not already spent on the forked blocks.
                     CBigNum coinSerial = spend.getCoinSerialNumber();
+                    LogPrintf("coinSerial is %s\n", coinSerial.ToString(10));
                     for(CBigNum serial : vBlockSerials){
                         if(serial == coinSerial){
-                            return state.DoS(100,
-                                             error("%s: serial double spent on fork",
-                                                   __func__));
+                            return state.DoS(100, error("%s: serial double spent on fork", __func__));
                         }
                     }
+
                     // Now check if the serial exists before the chain split.
                     int nHeightTx = 0;
                     if (IsSerialInBlockchain(spend.getCoinSerialNumber(), nHeightTx)){
                         // if the height is nHeightTx > chainSplit means that the spent occurred after the chain split
+                        LogPrintf("Here nHeightTx is %d while splitHeight %d\n", nHeightTx, splitHeight);
                         if(nHeightTx <= splitHeight){
-                            return state.DoS(100,
-                                             error("%s: serial double spent on main chain",
-                                                   __func__));
+                            return state.DoS(100, error("%s: serial double spent on main chain", __func__));
                         }
                     }
+                    LogPrintf("But passes the checks\n", coinSerial.ToString(10));
 
                     if (!ContextualCheckZerocoinSpendNoSerialCheck(stakeTxIn, spend, pindex, 0))
                         return state.DoS(100,error("%s: ContextualCheckZerocoinSpend failed for tx %s", __func__,
@@ -4670,6 +4669,13 @@ bool AcceptBlock(CBlock& block, CValidationState& state, CBlockIndex** ppindex, 
                         return error("%s: coin stake inputs already spent in main chain", __func__);
                     }
                 }
+            }
+        } else {
+            for (CTxIn zObsrInput : zOBSRInputs) {
+                    CoinSpend spend = TxInToZerocoinSpend(zObsrInput);
+                    if (!ContextualCheckZerocoinSpend(stakeTxIn, spend, pindex, 0))
+                        return state.DoS(100,error("%s: ContextualCheckZerocoinSpend failed for tx %s", __func__,
+                                stakeTxIn.GetHash().GetHex()), REJECT_INVALID, "bad-txns-invalid-zobsr");
             }
         }
 
