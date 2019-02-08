@@ -4603,13 +4603,11 @@ bool AcceptBlock(CBlock& block, CValidationState& state, CBlockIndex** ppindex, 
 
             // Now that this loop if completed. Check if we have zOBSR inputs.
             if(hasZOBSRInputs){
-                LogPrintf("It has ZOBSR Inputs!!\n");
                 for (CTxIn zObsrInput : zOBSRInputs) {
                     CoinSpend spend = TxInToZerocoinSpend(zObsrInput);
 
                     // First check if the serials were not already spent on the forked blocks.
                     CBigNum coinSerial = spend.getCoinSerialNumber();
-                    LogPrintf("coinSerial is %s\n", coinSerial.ToString(10));
                     for(CBigNum serial : vBlockSerials){
                         if(serial == coinSerial){
                             return state.DoS(100, error("%s: serial double spent on fork", __func__));
@@ -4620,12 +4618,9 @@ bool AcceptBlock(CBlock& block, CValidationState& state, CBlockIndex** ppindex, 
                     int nHeightTx = 0;
                     if (IsSerialInBlockchain(spend.getCoinSerialNumber(), nHeightTx)){
                         // if the height is nHeightTx > chainSplit means that the spent occurred after the chain split
-                        LogPrintf("Here nHeightTx is %d while splitHeight %d\n", nHeightTx, splitHeight);
-                        if(nHeightTx <= splitHeight){
+                        if(nHeightTx <= splitHeight)
                             return state.DoS(100, error("%s: serial double spent on main chain", __func__));
-                        }
                     }
-                    LogPrintf("But passes the checks\n", coinSerial.ToString(10));
 
                     if (!ContextualCheckZerocoinSpendNoSerialCheck(stakeTxIn, spend, pindex, 0))
                         return state.DoS(100,error("%s: ContextualCheckZerocoinSpend failed for tx %s", __func__,
