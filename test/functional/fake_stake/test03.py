@@ -15,7 +15,7 @@ class Test_03(OBSR_FakeStakeTest):
         self.init_test()
 
         FORK_DEPTH = 20  # Depth at which we are creating a fork. We are mining
-        INITAL_MINED_BLOCKS = 301
+        INITAL_MINED_BLOCKS = 321
         self.NUM_BLOCKS = 15
 
         # 1) Starting mining blocks
@@ -25,12 +25,12 @@ class Test_03(OBSR_FakeStakeTest):
 
         # 2) Collect the possible prevouts and mint zerocoins with those
         self.log.info("Collecting all unspent coins which we generated from mining...")
-        balance = self.node.getbalance()
+        balance = self.node.getbalance("*", 100)
         self.log.info("Minting zerocoins...")
         initial_mints = 0
-        while balance > 1000:
+        while balance > 5000:
             try:
-                self.node.mintzerocoin(1000)
+                self.node.mintzerocoin(5000)
             except JSONRPCException:
                 break
             time.sleep(1)
@@ -44,6 +44,17 @@ class Test_03(OBSR_FakeStakeTest):
         # 3) mine 200 blocks
         self.log.info("Mining 200 blocks ... and getting spendable zerocoins")
         self.node.generate(200)
+        balance = self.node.getbalance("*", 100)
+        while balance > 5000:
+            try:
+                self.node.mintzerocoin(5000)
+            except JSONRPCException:
+                break
+            time.sleep(1)
+            initial_mints += 1
+            self.node.generate(1)
+            time.sleep(1)
+            balance = self.node.getbalance("*", 100)
 
         # This mints are not ready spendable, only few of them.
         mints_list = [x["serial hash"] for x in self.node.listmintedzerocoins(True, True)]
@@ -73,10 +84,11 @@ class Test_03(OBSR_FakeStakeTest):
         self.log.info("Sleeping 2 sec. Now mining PoS blocks based on already spent transactions...")
         time.sleep(2)
 
-        '''
-        # 4) Create "Fake Stake" blocks and send them
+        # 6) Create "Fake Stake" blocks and send them
         init_size = dir_size(self.node.datadir + "/regtest/blocks")
         self.log.info("Initial size of data dir: %s kilobytes" % str(init_size))
+
+        '''
 
         for i in range(0, self.NUM_BLOCKS):
             if i != 0 and i % 5 == 0:
