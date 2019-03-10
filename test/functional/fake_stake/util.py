@@ -113,18 +113,28 @@ def create_transaction(outPoint, sig, value, nTime, scriptPubKey=CScript()):
     return tx
 
 
-def utxo_to_stakingPrevOuts(utxo, stakingPrevOuts, txBlocktime):
+def utxo_to_stakingPrevOuts(utxo, stakingPrevOuts, txBlocktime, stakeModifier, zpos=False):
     '''
     Updates a map of unspent outputs to (amount, blocktime) to be used as stake inputs
-    :param   utxo:              (map) utxo JSON object returned from listunspent
-             stakingPrevOuts:   ({COutPoint --> (int, int)} dictionary)
-             txBlocktime:       (int) transaction block time
+    :param   utxo:     <if zpos=False>  (map) utxo JSON object returned from listunspent
+                       <if zpos=True>   (map) mint JSON object returned from listmintedzerocoins
+             stakingPrevOuts:   ({COutPoint --> (int, int, int, str)} dictionary)
+                                map outpoints to amount, block_time, nStakeModifier, hashStake hex
+             txBlocktime:       (int) block time of the stake Modifier
+             stakeModifier:     (int) stake modifier for the current utxo
+             zpos:              (bool) if true, utxo holds a zerocoin serial hash
     :return
     '''
 
-    COINBASE_MATURITY = 100
+    COINBASE_MATURITY = 200 if zpos else 100
     if utxo['confirmations'] > COINBASE_MATURITY:
-        outPoint = COutPoint(int(utxo['txid'], 16), utxo['vout'])
-        stakingPrevOuts[outPoint] = (int(utxo['amount'])*COIN, txBlocktime)
+        if zpos:
+            outPoint = utxo["serial hash"]
+            stakingPrevOuts[outPoint] = (int(utxo["denomination"]) * COIN, txBlocktime, stakeModifier, utxo['hash stake'])
+        else:
+            outPoint = COutPoint(int(utxo['txid'], 16), utxo['vout'])
+            stakingPrevOuts[outPoint] = (int(utxo['amount'])*COIN, txBlocktime, stakeModifier, "")
 
     return
+
+

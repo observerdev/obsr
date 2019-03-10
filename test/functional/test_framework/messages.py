@@ -95,6 +95,14 @@ def ser_uint256(u):
     return rs
 
 
+def ser_uint64(u):
+    rs = b""
+    for i in range(2):
+        rs += struct.pack("<I", u & 0xFFFFFFFF)
+        u >>= 32
+    return rs
+
+
 def uint256_from_str(s):
     r = 0
     t = struct.unpack("<IIIIIIII", s[:32])
@@ -453,23 +461,36 @@ class CBlockHeader():
         self.calc_sha256()
         return self.sha256
 
-    def solve_stake(self, stakeModifier, prevouts):
-        target = uint256_from_compact(self.nBits)
+    # OBSR Uniqueness
+    def get_uniqueness(self, prevout):
+        r = b""
+        r += struct.pack("<I", prevout.n)
+        r += ser_uint256(prevout.hash)
+        return r
+
+    def solve_stake(self, prevouts):
+        target0 = uint256_from_compact(self.nBits)
         loop = True
         while loop:
             for prevout in prevouts:
-                nvalue, txBlockTime = prevouts[prevout]
+                nvalue, txBlockTime, stakeModifier, hashStake = prevouts[prevout]
+                target = int(target0 * nvalue / 100) % 2**256
                 data = b""
-                data += ser_uint256(stakeModifier)
+                data += ser_uint64(stakeModifier)
                 data += struct.pack("<I", txBlockTime)
-                data += prevout.serialize()
+                # prevout for zPoS is serial hashes hex strings
+                if isinstance(prevout, COutPoint):
+                    data += self.get_uniqueness(prevout)
+                else:
+                    data += ser_uint256(uint256_from_str(bytes.fromhex(hashStake)[::-1]))
                 data += struct.pack("<I", self.nTime)
                 posHash = uint256_from_str(hash256(data))
                 if posHash <= target:
                     self.prevoutStake = prevout
                     loop = False
                     break
-            self.nTime += 1
+            if loop:
+                self.nTime += 1
         return True
 
     def __repr__(self):
